@@ -26,7 +26,7 @@ The repository is organized around the following files and folders:
     ├── milestone2_02_create_rides_table.sql  
     ├── milestone2_03_insert_values.sql  
     ├── milestone2_04_analyze.sql  
-    ├── milestone2_04_delete_missing_coords.sql  
+    ├── milestone2_05_delete_missing_coords.sql  
     ├── milestone2_06_cleaning.sql  
     └── milestone2_07_add_columns.sql
 
@@ -73,7 +73,7 @@ No insights are generated at this stage; the emphasis is on data quality and str
 
 We need to combine these files into a single dataset using SQL to enable year-long analysis.
 
-We will use XAMPP with Apache and MySQL.
+We use XAMPP with Apache and MySQL.
 
 SQL commands are used to import the files.
 
@@ -125,10 +125,26 @@ SELECT * FROM `rides` PROCEDURE ANALYSE()
 | cyclistic_2022.rides.end_lng            | \-88.14                  | \-87.3           | 18         | 18         | 8                | 5858   |
 | cyclistic_2022.rides.member_casual      | casual                   | member           | 6          | 6          | 0                | 0      |
 
-I noticed that `end_lat` and `end_lng` had NULL values. These are critical measures, and we needed to drop those rows to improve future analysis.
+Notice that `end_lat` and `end_lng` have NULL values. These are critical measures, and we need to drop those rows to improve future analysis.
 The missing `station_name`s and `station_id`s were less concerning, as long as we had the start and end coordinates.
 
-## Data Cleaning
+## Table Design Rationale
+
+**Note:** I first tried loading the 12 CSV files into a simpler table design, but the biggest files were taking up to 200 seconds to finish importing. After testing the data and seeing where the bottlenecks were, I rebuilt the table with the following format [milestone2_02_create_rides_table.sql](sql/milestone2_02_create_rides_table.sql) to make loading and lookups more efficient.
+
+The final structure was chosen for a few practical reasons:
+
+- `ride_id` is stored as `char(16)` with `ascii_bin` so the identifier stays compact and compares efficiently.
+- `id` is a `mediumint unsigned auto_increment` primary key, which gives each row a fast internal lookup key.
+- The table is partitioned by `started_at` so date-based work can be organized more efficiently.
+- Both `started_at` and `ended_at` use `datetime` to integrate the data easily. 
+- The `varchar` sizes were based on the largest values observed in the source data, which keeps the schema realistic without wasting space.
+- `decimal` is used for latitude and longitude so coordinate values stay accurate and avoid floating-point precision issues.
+- `enum` is used for fields with a small set of known values, such as `rideable_type` and `member_casual`, because that keeps the table consistent and efficient.
+
+With those changes in place, the largest CSV finished importing in under 7 seconds.
+
+## Step 3: Data Cleaning
 
 We started by cleaning up the missing ending coordinates. See [milestone2_05_delete_missing_coords.sql](sql/milestone2_05_delete_missing_coords.sql).
 
@@ -136,7 +152,7 @@ Many values were standardized or cleaned up when they were inserted into the tab
 
 However, see [milestone2_06_cleaning.sql](sql/milestone2_06_cleaning.sql) for steps including checking duplicate entries and filtering invalid records.
 
-## Data Transformation
+## Step 4: Data Transformation
 
 New virtual variables were created to support analysis, with no extra storage because they are computed on SELECT:
 - `ride_duration_sec` (from start and end times)
@@ -150,7 +166,7 @@ These transformations help enable comparison between rider types.
 
 See [milestone2_07_add_columns.sql](sql/milestone2_07_add_columns.sql) to see how to do this.
 
-## Data Validation
+## Step 5: Data Validation
 
 Final checks were performed to ensure consistency:
 
